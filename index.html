@@ -1,58 +1,47 @@
-```html
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SWK PreTCAS Dashboard (ม.6/2569) V1.4</title>
+    <title>SWK PreTCAS Dashboard (ม.6/2569) V1.6</title>
     
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
+    <!-- เปลี่ยนมาใช้ CDN หลักที่เสถียรที่สุดเพื่อป้องกันการถูกบล็อก -->
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Recharts dependencies (Prop-Types is required by Recharts) -->
-    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
-    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
-    
-    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/recharts@2.10.4/umd/Recharts.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
         body { 
             font-family: 'Sarabun', sans-serif; 
-            background-color: #f3f4f6; 
+            background-color: #f8fafc; /* พื้นหลังสีสว่างซอฟต์ */
+            color: #334155;
         }
-        .tab-active { 
-            border-bottom: 2px solid #2563eb; 
-            color: #2563eb; 
-            font-weight: 600; 
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* ธีมปุ่มแคปซูล */
+        .tab-btn {
+            padding: 0.5rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 500;
+            transition: all 0.3s ease;
         }
-        .tab-inactive { 
-            color: #6b7280; 
-            border-bottom: 2px solid transparent; 
-        }
-        .tab-inactive:hover { 
-            color: #374151; 
-            border-bottom: 2px solid #d1d5db; 
-        }
-        /* Custom Scrollbar */
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .tab-active { background-color: #38bdf8; color: white; box-shadow: 0 4px 6px -1px rgba(56, 189, 248, 0.3); }
+        .tab-inactive { background-color: #f1f5f9; color: #64748b; }
+        .tab-inactive:hover { background-color: #e2e8f0; color: #475569; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const rawCSVData = `รหัสผู้สอบ,เลขที่,ชื่อ,สกุล,กลุ่มสอบ,คะแนน tgat1,คะแนน tgat2,คะแนน tgat3,คะแนนรวม
+        // 1. ฝังข้อมูล CSV (รวม 6/11-13 ตามบริบท)
+        const rawCSVData = `รหัสผู้สอบ,เลขที่,ชื่อ, สกุล,กลุ่มสอบ,คะแนน tgat1,คะแนน tgat2,คะแนน tgat3,คะแนนรวม
 29157,1,นายธนสิทธิ์,ประเสริฐสังข์,1,47,60,87.92,195.92
 29265,2,นายธชรัฐ,ศรีวิชัย,1,72,61,84.58,218.58
 29268,3,นายบัญญวัต,ธัญใจ,1,28,51,83.75,163.75
@@ -353,99 +342,90 @@
 29255,2,นางสาวนิกษ์นิภา,แสนปัน,13,55,38,63.75,169.75`;
 
         const { useState, useEffect, useMemo } = React;
-        // Check if window.Recharts is available, if so destructure
-        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } = window.Recharts || {};
 
-        // Helper to format groups specifically correctly treating 12 and 13 as subclasses of 11
+        // แยกฟังก์ชันคำนำหน้าชื่อออกจากชื่อจริง
+        const parseName = (fullName) => {
+            if (!fullName) return { prefix: '', first: '' };
+            let first = fullName.trim();
+            if (first.startsWith('นางสาว')) return { prefix: 'นางสาว', first: first.replace('นางสาว', '').trim() };
+            if (first.startsWith('นาย')) return { prefix: 'นาย', first: first.replace('นาย', '').trim() };
+            return { prefix: '', first };
+        };
+
         const formatGroup = (group) => {
             if (!group) return "";
             const g = String(group).trim();
             if (g === "12") return "ม.6/11 (12)";
             if (g === "13") return "ม.6/11 (13)";
-            return `ม.6/${g}`;
+            return \`ม.6/\${g}\`;
         };
 
-        const PIE_COLORS = ['#10B981', '#EF4444']; 
+        // โทนพาสเทลสำหรับกราฟ
+        const PIE_COLORS = ['#34d399', '#f87171']; // Emerald-400 (ผ่าน), Red-400 (ตก)
 
         function App() {
-            const [isLoading, setIsLoading] = useState(true);
             const [data, setData] = useState([]);
+            const [isLoaded, setIsLoaded] = useState(false);
             const [activeTab, setActiveTab] = useState('overview'); 
             const [selectedGroup, setSelectedGroup] = useState('all');
-            const [examType, setExamType] = useState('TGAT'); 
             const [searchQuery, setSearchQuery] = useState('');
             const [sortConfig, setSortConfig] = useState({ key: 'คะแนนรวม', direction: 'desc' });
-
             const [thresholds, setThresholds] = useState({ tgat1: 0, tgat2: 0, tgat3: 0, total: 0 });
 
             useEffect(() => {
-                // Simulate a slight delay to allow loading screen rendering
+                // หน่วงเวลาเล็กน้อยเพื่อให้เบราว์เซอร์เตรียม Recharts ให้พร้อม
                 setTimeout(() => {
-                    const results = Papa.parse(rawCSVData, { header: true, dynamicTyping: true, skipEmptyLines: true });
-                    const validData = results.data.filter(row => row['รหัสผู้สอบ']);
-                    
-                    let sum1 = 0, sum2 = 0, sum3 = 0, sumTotal = 0;
-                    let count = validData.length;
-                    
-                    validData.forEach(d => {
-                        sum1 += (d['คะแนน tgat1'] || 0);
-                        sum2 += (d['คะแนน tgat2'] || 0);
-                        sum3 += (d['คะแนน tgat3'] || 0);
-                        sumTotal += (d['คะแนนรวม'] || 0);
-                    });
+                    if (window.Recharts) {
+                        const results = Papa.parse(rawCSVData, { header: true, dynamicTyping: true, skipEmptyLines: true });
+                        const validData = results.data.filter(row => row['รหัสผู้สอบ']);
+                        
+                        let sum1 = 0, sum2 = 0, sum3 = 0, sumTotal = 0, count = validData.length;
+                        const processedData = validData.map(d => {
+                            sum1 += (d['คะแนน tgat1'] || 0);
+                            sum2 += (d['คะแนน tgat2'] || 0);
+                            sum3 += (d['คะแนน tgat3'] || 0);
+                            sumTotal += (d['คะแนนรวม'] || 0);
+                            
+                            // นำฟังก์ชันแยกชื่อมาใส่เป็น column ใหม่
+                            const { prefix, first } = parseName(d['ชื่อ']);
+                            return { ...d, คำนำหน้า: prefix, ชื่อจริง: first };
+                        });
 
-                    setData(validData);
-                    if (count > 0) {
+                        setData(processedData);
                         setThresholds({
                             tgat1: +(sum1 / count).toFixed(2),
                             tgat2: +(sum2 / count).toFixed(2),
                             tgat3: +(sum3 / count).toFixed(2),
                             total: +(sumTotal / count).toFixed(2)
                         });
+                        setIsLoaded(true);
+                    } else {
+                        // ถ้า CDN โดนบล็อก ให้แสดงการแจ้งเตือน
+                        alert("ระบบไม่สามารถโหลดส่วนประกอบกราฟได้ โปรดปิดโปรแกรม Adblocker หรือสัญลักษณ์รูปโล่ด้านบนขวา แล้วรีเฟรชหน้าเว็บอีกครั้ง");
                     }
-                    setIsLoading(false);
-                }, 500);
+                }, 300);
             }, []);
-
-            const handleThresholdChange = (e, subject) => {
-                setThresholds({ ...thresholds, [subject]: Number(e.target.value) });
-            };
 
             const filteredData = useMemo(() => {
                 return data.filter(item => {
                     const matchGroup = selectedGroup === 'all' || String(item['กลุ่มสอบ']) === String(selectedGroup);
-                    const matchSearch = (item['ชื่อ'] || '').includes(searchQuery) || 
-                                        (item['สกุล'] || '').includes(searchQuery) || 
-                                        String(item['รหัสผู้สอบ']).includes(searchQuery);
+                    const search = searchQuery.toLowerCase();
+                    const matchSearch = (item['ชื่อจริง'] || '').toLowerCase().includes(search) || 
+                                        (item['สกุล'] || '').toLowerCase().includes(search) || 
+                                        String(item['รหัสผู้สอบ']).includes(search);
                     return matchGroup && matchSearch;
                 });
             }, [data, selectedGroup, searchQuery]);
 
             const sortedData = useMemo(() => {
                 let sortableData = [...filteredData];
-                if (sortConfig !== null) {
-                    sortableData.sort((a, b) => {
-                        let aValue = a[sortConfig.key] || 0;
-                        let bValue = b[sortConfig.key] || 0;
-                        if (typeof aValue === 'string') {
-                            aValue = aValue.toLowerCase();
-                            bValue = (bValue || '').toLowerCase();
-                        }
-                        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-                        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-                        return 0;
-                    });
-                }
+                sortableData.sort((a, b) => {
+                    if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+                    if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
                 return sortableData;
             }, [filteredData, sortConfig]);
-
-            const requestSort = (key) => {
-                let direction = 'desc';
-                if (sortConfig.key === key && sortConfig.direction === 'desc') { 
-                    direction = 'asc'; 
-                }
-                setSortConfig({ key, direction });
-            };
 
             const chartData = useMemo(() => {
                 const groups = {};
@@ -458,107 +438,87 @@
                     groups[g].t3 += (d['คะแนน tgat3'] || 0);
                     groups[g].total += (d['คะแนนรวม'] || 0);
                 });
-
                 return Object.keys(groups).map(k => ({
                     name: k,
                     TGAT1: +(groups[k].t1 / groups[k].count).toFixed(2),
                     TGAT2: +(groups[k].t2 / groups[k].count).toFixed(2),
-                    TGAT3: +(groups[k].t3 / groups[k].count).toFixed(2),
-                    Total: +(groups[k].total / groups[k].count).toFixed(2)
-                })).sort((a,b) => {
-                    const numA = parseInt((a.name.match(/\d+/g) || ['0'])[1] || 0);
-                    const numB = parseInt((b.name.match(/\d+/g) || ['0'])[1] || 0);
-                    if (numA === numB) return a.name.localeCompare(b.name);
-                    return numA - numB;
-                });
+                    TGAT3: +(groups[k].t3 / groups[k].count).toFixed(2)
+                })).sort((a,b) => parseInt(a.name.match(/\d+/g)[1]) - parseInt(b.name.match(/\d+/g)[1]) || a.name.localeCompare(b.name));
             }, [filteredData]);
 
             const getPassRateData = (subject, key) => {
                 let pass = 0, fail = 0;
-                filteredData.forEach(d => {
-                    if ((d[key] || 0) >= thresholds[subject]) pass++;
-                    else fail++;
-                });
-                return [
-                    { name: 'ผ่านเกณฑ์', value: pass },
-                    { name: 'ต่ำกว่าเกณฑ์', value: fail }
-                ];
+                filteredData.forEach(d => { ((d[key] || 0) >= thresholds[subject]) ? pass++ : fail++ });
+                return [{ name: 'ผ่านเกณฑ์', value: pass }, { name: 'ต่ำกว่า', value: fail }];
             };
 
-            if (isLoading || !window.Recharts) {
-                return (
-                    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-                        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="mt-4 text-gray-600 font-medium text-lg">กำลังโหลดข้อมูลระบบ SWK PreTCAS...</p>
-                    </div>
-                );
-            }
+            if (!isLoaded) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-medium">กำลังเตรียมข้อมูล...</div>;
+
+            const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } = window.Recharts;
 
             return (
                 <div className="min-h-screen p-4 md:p-8">
-                    <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-                        <div className="bg-blue-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center">
-                            <div>
-                                <h1 className="text-2xl font-bold">SWK PreTCAS Dashboard (ม.6/2569) V1.4</h1>
-                                <p className="text-blue-200 text-sm mt-1">ระบบวิเคราะห์ข้อมูลผลการสอบเพื่อประเมินความพร้อมระดับชั้น ม.6</p>
-                            </div>
-                            <div className="mt-4 md:mt-0 bg-blue-900 rounded-lg p-1 flex">
-                                <button className={`px-4 py-2 rounded text-sm ${examType === 'TGAT' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-blue-300'}`} onClick={() => setExamType('TGAT')}>PreTGAT</button>
-                                <button className="px-4 py-2 rounded text-sm text-gray-400 cursor-not-allowed">A-Level (ม.ค. 70)</button>
-                            </div>
+                    {/* Header โค้งมนสีพาสเทลไล่ระดับ */}
+                    <div className="max-w-7xl mx-auto bg-gradient-to-r from-sky-400 to-indigo-400 text-white rounded-3xl shadow-md overflow-hidden mb-6 px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-wide">SWK PreTCAS Dashboard (ม.6/2569) V1.6</h1>
+                            <p className="text-sky-100 text-sm mt-1 font-light">ระบบวิเคราะห์ข้อมูลผลการสอบเพื่อประเมินความพร้อมระดับชั้น ม.6</p>
                         </div>
-
-                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                            <div className="flex gap-6">
-                                <button className={`pb-2 ${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('overview')}>แถบภาพรวม (Executive)</button>
-                                <button className={`pb-2 ${activeTab === 'table' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('table')}>แถบข้อมูลรายบุคคล (Data)</button>
-                            </div>
-                            
-                            <div className="flex flex-wrap items-center gap-3 text-sm">
-                                <span className="font-medium text-gray-700">เกณฑ์ตัดคะแนน:</span>
-                                {['tgat1', 'tgat2', 'tgat3', 'total'].map(subj => (
-                                    <div key={subj} className="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-1 shadow-sm">
-                                        <span className="text-gray-500 font-semibold">{subj === 'total' ? 'รวม' : subj.toUpperCase()}:</span>
-                                        <input type="number" step="0.01" value={thresholds[subj]} onChange={(e) => handleThresholdChange(e, subj)} className="w-16 text-center text-blue-600 font-bold focus:outline-none"/>
-                                    </div>
-                                ))}
-                            </div>
+                        <div className="bg-white/20 p-1 rounded-2xl flex backdrop-blur-sm">
+                            <button className="px-5 py-2 rounded-xl bg-white text-indigo-600 font-semibold shadow-sm text-sm">PreTGAT</button>
+                            <button className="px-5 py-2 rounded-xl text-sky-100 text-sm opacity-70 cursor-not-allowed">A-Level (ม.ค. 70)</button>
                         </div>
                     </div>
 
-                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-4 mb-6">
-                        <select className="p-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[200px] font-medium" value={selectedGroup} onChange={(e) => setSelectedGroup(e.target.value)}>
-                            <option value="all">ม.6 ทุกกลุ่มสอบ (ทั้งหมด)</option>
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                                <option key={g} value={g}>{formatGroup(g)}</option>
+                    {/* Controls & Thresholds โค้งมน */}
+                    <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-100 p-4 px-6 flex flex-col xl:flex-row justify-between items-center gap-6 mb-6">
+                        <div className="flex gap-3">
+                            <button className={\`tab-btn \${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}\`} onClick={() => setActiveTab('overview')}>ภาพรวม (Executive)</button>
+                            <button className={\`tab-btn \${activeTab === 'table' ? 'tab-active' : 'tab-inactive'}\`} onClick={() => setActiveTab('table')}>ข้อมูลรายบุคคล (Data)</button>
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                            <span className="font-semibold text-slate-600 mr-2">เกณฑ์ตัดคะแนนกลาง:</span>
+                            {['tgat1', 'tgat2', 'tgat3', 'total'].map(subj => (
+                                <div key={subj} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-inner">
+                                    <span className="text-slate-400 text-xs font-medium">{subj === 'total' ? 'รวม' : subj.toUpperCase()}</span>
+                                    <input type="number" value={thresholds[subj]} onChange={(e) => setThresholds({ ...thresholds, [subj]: Number(e.target.value) })} className="w-14 bg-transparent text-center text-sky-600 font-bold focus:outline-none"/>
+                                </div>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Filter Bar */}
+                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-4 mb-6">
+                        <select className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-sky-300 focus:outline-none min-w-[200px] text-slate-600 font-medium" value={selectedGroup} onChange={(e) => setSelectedGroup(e.target.value)}>
+                            <option value="all">ม.6 ทุกกลุ่มสอบ (ทั้งหมด)</option>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => <option key={g} value={g}>{formatGroup(g)}</option>)}
                         </select>
                         {activeTab === 'table' && (
-                            <div className="relative flex-grow">
-                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                                </div>
-                                <input type="text" placeholder="ค้นหารหัส หรือชื่อ-สกุล ด่วน..." className="p-2.5 pl-10 border border-gray-300 rounded-lg shadow-sm w-full focus:ring-blue-500 focus:border-blue-500 bg-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                            </div>
+                            <input type="text" placeholder="พิมพ์ชื่อ สกุล หรือรหัส เพื่อค้นหาด่วน..." className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm flex-grow focus:ring-2 focus:ring-sky-300 focus:outline-none" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                         )}
                     </div>
 
+                    {/* แถบภาพรวม */}
                     {activeTab === 'overview' && (
                         <div className="max-w-7xl mx-auto space-y-6">
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                                <h3 className="text-lg font-bold mb-4 text-gray-800 border-l-4 border-blue-500 pl-3">เปรียบเทียบคะแนนเฉลี่ยรายห้อง (เทียบกับเกณฑ์รวม)</h3>
+                            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                                <h3 className="text-lg font-bold mb-6 text-slate-700 flex items-center gap-2">
+                                    <span className="w-2 h-6 bg-sky-400 rounded-full inline-block"></span> เปรียบเทียบคะแนนเฉลี่ยรายห้อง
+                                </h3>
                                 <div className="h-[400px]">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="name" tick={{fontSize: 12}} />
-                                            <YAxis tick={{fontSize: 12}} />
-                                            <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}/>
-                                            <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                            <Bar dataKey="TGAT1" fill="#3B82F6" name="TGAT1 (อังกฤษ)" radius={[4, 4, 0, 0]} />
-                                            <Bar dataKey="TGAT2" fill="#8B5CF6" name="TGAT2 (เหตุผล)" radius={[4, 4, 0, 0]} />
-                                            <Bar dataKey="TGAT3" fill="#F59E0B" name="TGAT3 (สมรรถนะ)" radius={[4, 4, 0, 0]} />
-                                            <ReferenceLine y={thresholds.total/3} stroke="#EF4444" strokeDasharray="4 4" label={{ position: 'top', value: 'เฉลี่ยรายวิชา', fill: '#EF4444', fontSize: 12, fontWeight: 'bold' }} />
+                                        <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                            <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                                            <YAxis tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                                            <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                                            <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
+                                            {/* สีพาสเทลสำหรับบาร์ชาร์ท */}
+                                            <Bar dataKey="TGAT1" fill="#7dd3fc" name="TGAT1 (อังกฤษ)" radius={[6, 6, 0, 0]} />
+                                            <Bar dataKey="TGAT2" fill="#c4b5fd" name="TGAT2 (เหตุผล)" radius={[6, 6, 0, 0]} />
+                                            <Bar dataKey="TGAT3" fill="#fde047" name="TGAT3 (สมรรถนะ)" radius={[6, 6, 0, 0]} />
+                                            <ReferenceLine y={thresholds.total/3} stroke="#f87171" strokeDasharray="4 4" label={{ position: 'top', value: 'เกณฑ์เฉลี่ยรายวิชา', fill: '#f87171', fontSize: 12, fontWeight: 600 }} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -566,28 +526,21 @@
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {[{subj: 'tgat1', key: 'คะแนน tgat1', title: 'TGAT1 (อังกฤษ)'}, {subj: 'tgat2', key: 'คะแนน tgat2', title: 'TGAT2 (เหตุผล)'}, {subj: 'tgat3', key: 'คะแนน tgat3', title: 'TGAT3 (สมรรถนะ)'}].map(item => (
-                                    <div key={item.subj} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center">
-                                        <h3 className="text-md font-bold text-gray-700">{item.title}</h3>
-                                        <p className="text-xs text-gray-500 mb-4 bg-gray-100 px-3 py-1 rounded-full mt-2">เกณฑ์: <span className="font-bold text-blue-600">{thresholds[item.subj]}</span> คะแนน</p>
-                                        <div className="h-[220px] w-full relative">
+                                    <div key={item.subj} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center">
+                                        <h3 className="text-md font-bold text-slate-600 mb-2">{item.title}</h3>
+                                        <div className="h-[200px] w-full">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
-                                                    <Pie data={getPassRateData(item.subj, item.key)} innerRadius={65} outerRadius={85} paddingAngle={5} dataKey="value">
-                                                        {getPassRateData(item.subj, item.key).map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
+                                                    <Pie data={getPassRateData(item.subj, item.key)} innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value" stroke="none">
+                                                        {getPassRateData(item.subj, item.key).map((entry, index) => <Cell key={\`cell-\${index}\`} fill={PIE_COLORS[index]} />)}
                                                     </Pie>
-                                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                    <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
                                                 </PieChart>
                                             </ResponsiveContainer>
-                                            <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-                                                <span className="text-2xl font-bold text-gray-800">
-                                                    {getPassRateData(item.subj, item.key)[0].value}
-                                                </span>
-                                                <span className="text-xs text-gray-500">คนผ่านเกณฑ์</span>
-                                            </div>
                                         </div>
-                                        <div className="flex gap-4 text-sm mt-4 font-medium text-gray-600">
-                                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-[#10B981] rounded-full shadow-sm"></div> ผ่าน</div>
-                                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-[#EF4444] rounded-full shadow-sm"></div> ต่ำกว่า</div>
+                                        <div className="flex gap-5 text-sm mt-4 font-medium text-slate-500">
+                                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-400 rounded-full"></div> ผ่าน</div>
+                                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-400 rounded-full"></div> ต่ำกว่า</div>
                                         </div>
                                     </div>
                                 ))}
@@ -595,60 +548,41 @@
                         </div>
                     )}
 
+                    {/* แถบตาราง */}
                     {activeTab === 'table' && (
-                        <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[70vh]">
-                            <div className="overflow-auto custom-scrollbar flex-grow">
-                                <table className="w-full text-sm text-left whitespace-nowrap">
-                                    <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b sticky top-0 z-10 shadow-sm">
+                        <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
                                         <tr>
-                                            {['รหัสผู้สอบ', 'เลขที่', 'ชื่อ', 'สกุล', 'กลุ่มสอบ', 'คะแนน tgat1', 'คะแนน tgat2', 'คะแนน tgat3', 'คะแนนรวม'].map(col => (
-                                                <th key={col} className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort(col)}>
-                                                    <div className="flex items-center gap-1">
-                                                        {col.replace('คะแนน tgat', 'TGAT').replace('คะแนนรวม', 'รวม')} 
-                                                        {sortConfig.key === col ? (sortConfig.direction === 'asc' ? <span className="text-blue-600">▲</span> : <span className="text-blue-600">▼</span>) : <span className="text-transparent">▲</span>}
-                                                    </div>
+                                            {['รหัสผู้สอบ', 'เลขที่', 'คำนำหน้า', 'ชื่อจริง', 'สกุล', 'กลุ่มสอบ', 'คะแนน tgat1', 'คะแนน tgat2', 'คะแนน tgat3', 'คะแนนรวม'].map(col => (
+                                                <th key={col} className="px-5 py-4 cursor-pointer hover:bg-slate-100 transition whitespace-nowrap" onClick={() => setSortConfig({key: col, direction: sortConfig.key === col && sortConfig.direction === 'desc' ? 'asc' : 'desc'})}>
+                                                    {col.replace('คะแนน tgat', 'TGAT').replace('คะแนนรวม', 'รวม')} {sortConfig.key === col ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
                                                 </th>
                                             ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-slate-50">
                                         {sortedData.map((row, i) => (
-                                            <tr key={i} className="bg-white hover:bg-blue-50/50 transition">
-                                                <td className="px-5 py-3 font-semibold text-gray-900">{row['รหัสผู้สอบ']}</td>
-                                                <td className="px-5 py-3 text-gray-500">{row['เลขที่']}</td>
-                                                <td className="px-5 py-3 font-medium text-gray-800">{row['ชื่อ']}</td>
-                                                <td className="px-5 py-3 text-gray-800">{row['สกุล']}</td>
-                                                <td className="px-5 py-3">
-                                                    <span className="bg-gray-100 px-2.5 py-1 rounded-md text-xs border border-gray-200 font-medium text-gray-600">{formatGroup(row['กลุ่มสอบ'])}</span>
-                                                </td>
+                                            <tr key={i} className="hover:bg-sky-50/50 transition-colors even:bg-slate-50/30">
+                                                <td className="px-5 py-3 font-semibold text-slate-700">{row['รหัสผู้สอบ']}</td>
+                                                <td className="px-5 py-3 text-slate-400">{row['เลขที่']}</td>
+                                                <td className="px-5 py-3 text-slate-400">{row['คำนำหน้า']}</td>
+                                                <td className="px-5 py-3 font-medium text-slate-700">{row['ชื่อจริง']}</td>
+                                                <td className="px-5 py-3 text-slate-600">{row['สกุล']}</td>
+                                                <td className="px-5 py-3 text-slate-500">{formatGroup(row['กลุ่มสอบ'])}</td>
                                                 {['tgat1', 'tgat2', 'tgat3'].map(subj => (
-                                                    <td key={subj} className={`px-5 py-3 font-medium ${row[`คะแนน ${subj}`] >= thresholds[subj] ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                        <div className="flex items-center gap-1.5">
-                                                            {row[`คะแนน ${subj}`]} {row[`คะแนน ${subj}`] >= thresholds[subj] ? <span className="text-[10px]">▲</span> : <span className="text-[10px]">▼</span>}
-                                                        </div>
+                                                    <td key={subj} className={\`px-5 py-3 font-semibold \${row[\`คะแนน \${subj}\`] >= thresholds[subj] ? 'text-emerald-500' : 'text-red-400'}\`}>
+                                                        {row[\`คะแนน \${subj}\`]} {row[\`คะแนน \${subj}\`] >= thresholds[subj] ? '▲' : '▼'}
                                                     </td>
                                                 ))}
-                                                <td className={`px-5 py-3 font-bold bg-gray-50/50 ${row['คะแนนรวม'] >= thresholds.total ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                <td className={\`px-5 py-3 font-bold \${row['คะแนนรวม'] >= thresholds.total ? 'text-emerald-500' : 'text-red-500 bg-red-50/50 rounded-lg'}\`}>
                                                     {row['คะแนนรวม']}
                                                 </td>
                                             </tr>
                                         ))}
-                                        {sortedData.length === 0 && (
-                                            <tr>
-                                                <td colSpan="9" className="px-5 py-12 text-center text-gray-400">
-                                                    <div className="flex flex-col items-center">
-                                                        <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                        ไม่พบข้อมูลที่ตรงกับการค้นหา
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
                                     </tbody>
                                 </table>
-                            </div>
-                            <div className="bg-gray-50 px-5 py-3 text-xs text-gray-500 border-t flex gap-4">
-                                <span className="flex items-center gap-1"><span className="text-emerald-600">▲</span> หมายถึงคะแนนสูงกว่าหรือเท่ากับเกณฑ์</span>
-                                <span className="flex items-center gap-1"><span className="text-red-500">▼</span> หมายถึงคะแนนต่ำกว่าเกณฑ์</span>
                             </div>
                         </div>
                     )}
@@ -661,4 +595,3 @@
     </script>
 </body>
 </html>
-```
