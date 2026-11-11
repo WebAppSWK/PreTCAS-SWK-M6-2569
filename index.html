@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWK PreTCAS Dashboard (ม.6/2569) V1.1</title>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Recharts -->
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <!-- PapaParse for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+        .tab-inactive { color: #6b7280; }
+        .tab-inactive:hover { color: #374151; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } = Recharts;
+
+        // ข้อมูลจำลองฝังในโค้ด เพื่อให้ Preview ทำงานได้ทันที
+        const MOCK_CSV_DATA = `รหัสผู้สอบ,เลขที่,ชื่อ,สกุล,กลุ่มสอบ,คะแนน tgat1,คะแนน tgat2,คะแนน tgat3,คะแนนรวม
+29157,1,นายธนสิทธิ์,ประเสริฐสังข์,1,47,60,87.92,195.92
+29265,2,นายธชรัฐ,ศรีวิชัย,1,72,61,84.58,218.58
+29270,5,นายภูวนาท,ปัถวี,1,63,55,90.83,209.83
+29388,8,นายศิวัช,ขันอุไร,1,60,64,94.17,219.17
+29201,10,นางสาวณภัทร,สิงห์พรม,1,35,60,88.33,184.33
+29263,1,นายชัชพิมุก,โพธิ์ทอง,2,40,48,87.5,177.5
+29264,2,นายชุติพนธ์,ถามูล,2,57,66,78.75,203.75
+29267,3,นายนัทธพงศ์,ประสม,2,67,75,85.83,229.83
+29454,7,นายกิตติพัฒน์,ช่างไม้,2,23,31,34.17,90.17
+29283,19,นางสาวธิดารัตน์,ปันรส,2,80,73,90,245
+29152,1,นายชยาธรณ์,คำเพียว,3,15,50,88.33,156.33
+29156,2,นายธนวัฒน์,รัตนวรรณ์,3,28,65,84.58,180.58
+29405,16,นางสาวเพียงพิม,ลุงยะ,3,27,29,35.83,94.83
+29482,21,นางสาวพิมพ์วิภา,ขันคำ,3,27,66,95.42,191.42
+29160,1,นายพัฒนพล,นาระตะ,4,15,68,85.83,172.83
+29314,4,นายศิวัชญา,สุมานนท์,4,17,51,79.58,151.58
+29415,25,นางสาวสุภาวดี,มะโนริ,4,25,19,83.33,131.33
+29147,1,นายกชกร,จินะคำปา,5,35,55,47.08,142.08
+29202,14,นางสาวณัฎฐณิชา,ปัญญา,5,53,60,91.67,209.67
+30985,29,นางสาวชนาภา,คำวงค์ษา,5,17,41,35,98
+29150,1,นายชญานนท์,วงค์ตัน,6,33,33,63.75,135.75
+30973,9,นายอาณัฐ,สารินจา,6,43,60,92.5,201.5
+31000,26,นางสาวปิ่น,ลุงต๊ะ,6,37,61,88.75,192.75
+29246,4,นายสิทธิโชค,อินเหลือ,7,30,35,90,162
+31084,14,นายพีรพล,บุญยรัตน์,7,22,20,32.5,81.5
+29151,1,นายชนินทร์,ปัญญาน้อย,8,28,13,40.83,89.83
+29456,11,นายณัฐวรรธน์,บุตตมา,8,73,49,81.67,211.67
+29238,1,นายนัฐพงษ์,ศิริธร,9,38,20,40,107
+29217,13,นางสาวพิมพ์ลภัส,ปัญญาแก้ว,9,38,46,87.92,180.92
+29119,1,นายนฤภัทร,ปวนลุน,10,53,24,79.17,166.17
+29154,3,นายธนกร,อุ่นอารมณ์,10,75,48,72.08,205.08
+29347,2,นายณัฏฐกรณ์,ยศชัยศรี,11,28,25,53.75,117.75
+31053,14,นางสาวนันทิกานต์,-,11,57,54,87.08,209.08
+29208,3,นางสาวธัญญ์รวี,รัตนวสิษฐ์กุล,12,63,66,80,221
+29370,7,นางสาวนราวัลย์,เลนา,12,15,19,76.25,122.25
+31058,1,นายวรกร,วงค์พุทธคำ,13,67,50,88.75,218.75
+29255,2,นางสาวนิกษ์นิภา,แสนปัน,13,55,38,63.75,169.75`;
+
+        // ฟังก์ชันแปลงกลุ่มสอบ
+        const formatGroup = (group) => {
+            if (!group) return "";
+            const g = String(group).trim();
+            if (g === "12") return "ม.6/11 (12)";
+            if (g === "13") return "ม.6/11 (13)";
+            return `ม.6/${g}`;
+        };
+
+        const PIE_COLORS = ['#10B981', '#EF4444']; // Green, Red
+
+        function App() {
+            const [data, setData] = useState([]);
+            const [activeTab, setActiveTab] = useState('overview'); // แถบ: overview, table
+            const [selectedGroup, setSelectedGroup] = useState('all');
+            const [examType, setExamType] = useState('TGAT'); 
+            const [searchQuery, setSearchQuery] = useState('');
+            const [sortConfig, setSortConfig] = useState({ key: 'คะแนนรวม', direction: 'desc' });
+
+            // เกณฑ์คะแนน (ค่าเริ่มต้นจะถูกคำนวณจากค่าเฉลี่ยกลาง)
+            const [thresholds, setThresholds] = useState({
+                tgat1: 0, tgat2: 0, tgat3: 0, total: 0
+            });
+
+            // โหลดข้อมูล CSV จาก Mock Data
+            useEffect(() => {
+                Papa.parse(MOCK_CSV_DATA, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const validData = results.data.filter(row => row['รหัสผู้สอบ']);
+                        setData(validData);
+                        
+                        // คำนวณค่าเฉลี่ยกลาง
+                        if (validData.length > 0) {
+                            let sum1 = 0, sum2 = 0, sum3 = 0, sumTotal = 0;
+                            validData.forEach(d => {
+                                sum1 += (d['คะแนน tgat1'] || 0);
+                                sum2 += (d['คะแนน tgat2'] || 0);
+                                sum3 += (d['คะแนน tgat3'] || 0);
+                                sumTotal += (d['คะแนนรวม'] || 0);
+                            });
+                            const count = validData.length;
+                            setThresholds({
+                                tgat1: +(sum1 / count).toFixed(2),
+                                tgat2: +(sum2 / count).toFixed(2),
+                                tgat3: +(sum3 / count).toFixed(2),
+                                total: +(sumTotal / count).toFixed(2)
+                            });
+                        }
+                    }
+                });
+            }, []);
+
+            const handleThresholdChange = (e, subject) => {
+                setThresholds({ ...thresholds, [subject]: Number(e.target.value) });
+            };
+
+            // กรองข้อมูล
+            const filteredData = useMemo(() => {
+                return data.filter(item => {
+                    const matchGroup = selectedGroup === 'all' || String(item['กลุ่มสอบ']) === String(selectedGroup);
+                    const matchSearch = item['ชื่อ']?.includes(searchQuery) || 
+                                        item['สกุล']?.includes(searchQuery) || 
+                                        String(item['รหัสผู้สอบ']).includes(searchQuery);
+                    return matchGroup && matchSearch;
+                });
+            }, [data, selectedGroup, searchQuery]);
+
+            // จัดเรียง
+            const sortedData = useMemo(() => {
+                let sortableData = [...filteredData];
+                if (sortConfig !== null) {
+                    sortableData.sort((a, b) => {
+                        let aValue = a[sortConfig.key];
+                        let bValue = b[sortConfig.key];
+                        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+                        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                }
+                return sortableData;
+            }, [filteredData, sortConfig]);
+
+            const requestSort = (key) => {
+                let direction = 'desc';
+                if (sortConfig.key === key && sortConfig.direction === 'desc') {
+                    direction = 'asc';
+                }
+                setSortConfig({ key, direction });
+            };
+
+            // ข้อมูลสำหรับกราฟ BarChart (ภาพรวม)
+            const chartData = useMemo(() => {
+                const groups = {};
+                filteredData.forEach(d => {
+                    const g = formatGroup(d['กลุ่มสอบ']);
+                    if (!groups[g]) groups[g] = { name: g, count: 0, t1: 0, t2: 0, t3: 0, total: 0 };
+                    groups[g].count += 1;
+                    groups[g].t1 += (d['คะแนน tgat1'] || 0);
+                    groups[g].t2 += (d['คะแนน tgat2'] || 0);
+                    groups[g].t3 += (d['คะแนน tgat3'] || 0);
+                    groups[g].total += (d['คะแนนรวม'] || 0);
+                });
+
+                return Object.keys(groups).map(k => ({
+                    name: k,
+                    TGAT1: +(groups[k].t1 / groups[k].count).toFixed(2),
+                    TGAT2: +(groups[k].t2 / groups[k].count).toFixed(2),
+                    TGAT3: +(groups[k].t3 / groups[k].count).toFixed(2),
+                    Total: +(groups[k].total / groups[k].count).toFixed(2)
+                })).sort((a,b) => {
+                    // Sort by group number correctly instead of purely alphabetical
+                    const numA = parseInt(a.name.match(/\d+/)[0]);
+                    const numB = parseInt(b.name.match(/\d+/)[0]);
+                    if(numA !== numB) return numA - numB;
+                    return a.name.localeCompare(b.name);
+                });
+            }, [filteredData]);
+
+            // คำนวณอัตราส่วนผ่านเกณฑ์ สำหรับ PieChart
+            const getPassRateData = (subject, key) => {
+                let pass = 0, fail = 0;
+                filteredData.forEach(d => {
+                    if ((d[key] || 0) >= thresholds[subject]) pass++;
+                    else fail++;
+                });
+                return [
+                    { name: 'สูงกว่า/เท่ากับเกณฑ์', value: pass },
+                    { name: 'ต่ำกว่าเกณฑ์', value: fail }
+                ];
+            };
+
+            return (
+                <div className="min-h-screen p-4 md:p-8">
+                    {/* Header */}
+                    <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+                        <div className="bg-blue-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h1 className="text-2xl font-bold">SWK PreTCAS Dashboard (ม.6/2569) V1.1</h1>
+                                <p className="text-blue-200 text-sm mt-1">ระบบวิเคราะห์ข้อมูลผลการสอบเพื่อประเมินความพร้อมระดับชั้น ม.6</p>
+                            </div>
+                            <div className="bg-blue-900 rounded-lg p-1 flex">
+                                <button 
+                                    className={`px-4 py-2 rounded text-sm ${examType === 'TGAT' ? 'bg-blue-600 text-white font-semibold' : 'text-blue-300'}`}
+                                    onClick={() => setExamType('TGAT')}
+                                >PreTGAT</button>
+                                <button 
+                                    className="px-4 py-2 rounded text-sm text-gray-400 cursor-not-allowed"
+                                    title="รองรับผลการสอบในเดือน ม.ค. 70"
+                                >A-Level (เร็วๆนี้)</button>
+                            </div>
+                        </div>
+
+                        {/* แถบเมนู & ตั้งค่าเกณฑ์ */}
+                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+                            <div className="flex gap-6 border-b border-gray-300 w-full xl:w-auto">
+                                <button 
+                                    className={`pb-2 -mb-[1px] px-2 ${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}`}
+                                    onClick={() => setActiveTab('overview')}
+                                >ภาพรวม (Executive)</button>
+                                <button 
+                                    className={`pb-2 -mb-[1px] px-2 ${activeTab === 'table' ? 'tab-active' : 'tab-inactive'}`}
+                                    onClick={() => setActiveTab('table')}
+                                >ข้อมูลรายบุคคล (Data)</button>
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-3 text-sm">
+                                <span className="font-medium text-gray-700">เกณฑ์ตัดคะแนน (ยึดตามค่าเฉลี่ยรวม):</span>
+                                <div className="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-1 shadow-sm">
+                                    <span className="text-gray-500 text-xs font-semibold">TGAT1:</span>
+                                    <input type="number" value={thresholds.tgat1} onChange={(e) => handleThresholdChange(e, 'tgat1')} className="w-16 text-center text-blue-600 font-bold focus:outline-none"/>
+                                </div>
+                                <div className="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-1 shadow-sm">
+                                    <span className="text-gray-500 text-xs font-semibold">TGAT2:</span>
+                                    <input type="number" value={thresholds.tgat2} onChange={(e) => handleThresholdChange(e, 'tgat2')} className="w-16 text-center text-blue-600 font-bold focus:outline-none"/>
+                                </div>
+                                <div className="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-1 shadow-sm">
+                                    <span className="text-gray-500 text-xs font-semibold">TGAT3:</span>
+                                    <input type="number" value={thresholds.tgat3} onChange={(e) => handleThresholdChange(e, 'tgat3')} className="w-16 text-center text-blue-600 font-bold focus:outline-none"/>
+                                </div>
+                                <div className="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-1 shadow-sm">
+                                    <span className="text-gray-500 text-xs font-semibold">รวม:</span>
+                                    <input type="number" value={thresholds.total} onChange={(e) => handleThresholdChange(e, 'total')} className="w-16 text-center text-blue-600 font-bold focus:outline-none"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Filter & Search */}
+                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-4 mb-6">
+                        <select 
+                            className="p-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[220px] font-medium text-gray-700"
+                            value={selectedGroup} 
+                            onChange={(e) => setSelectedGroup(e.target.value)}
+                        >
+                            <option value="all">ดูทุกกลุ่มสอบ (ทั้งหมด)</option>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                                <option key={g} value={g}>{formatGroup(g)}</option>
+                            ))}
+                        </select>
+                        
+                        {activeTab === 'table' && (
+                            <div className="relative flex-grow">
+                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหารหัสประจำตัว หรือ ชื่อ-สกุล..."
+                                    className="p-2.5 pl-10 border border-gray-300 rounded-lg shadow-sm w-full focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Content: Overview Tab */}
+                    {activeTab === 'overview' && (
+                        <div className="max-w-7xl mx-auto space-y-6">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                                <h3 className="text-lg font-bold mb-4 text-gray-800 border-l-4 border-blue-500 pl-3">เปรียบเทียบคะแนนเฉลี่ยรายห้อง (เทียบกับเกณฑ์รวม)</h3>
+                                <div className="h-[400px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" tick={{fontSize: 12, fill: '#4B5563'}} />
+                                            <YAxis tick={{fontSize: 12, fill: '#4B5563'}} />
+                                            <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                            <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                            <Bar dataKey="TGAT1" fill="#3B82F6" name="TGAT1 (สื่อสารอังกฤษ)" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="TGAT2" fill="#8B5CF6" name="TGAT2 (การคิดอย่างมีเหตุผล)" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="TGAT3" fill="#F59E0B" name="TGAT3 (สมรรถนะการทำงาน)" radius={[4, 4, 0, 0]} />
+                                            <ReferenceLine y={thresholds.total/3} stroke="#EF4444" strokeDasharray="4 4" label={{ position: 'top', value: 'เส้นเกณฑ์เฉลี่ยรายวิชา', fill: '#EF4444', fontSize: 12, fontWeight: 'bold' }} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {[{subj: 'tgat1', key: 'คะแนน tgat1', title: 'TGAT1 (อังกฤษ)'},
+                                  {subj: 'tgat2', key: 'คะแนน tgat2', title: 'TGAT2 (เหตุผล)'},
+                                  {subj: 'tgat3', key: 'คะแนน tgat3', title: 'TGAT3 (สมรรถนะ)'}].map(item => (
+                                    <div key={item.subj} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center">
+                                        <h3 className="text-md font-bold text-gray-700">{item.title}</h3>
+                                        <p className="text-xs text-gray-500 mb-4 bg-gray-100 px-3 py-1 rounded-full mt-2">เกณฑ์: <span className="font-bold text-blue-600">{thresholds[item.subj]}</span> คะแนน</p>
+                                        <div className="h-[220px] w-full relative">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie data={getPassRateData(item.subj, item.key)} innerRadius={65} outerRadius={85} paddingAngle={5} dataKey="value">
+                                                        {getPassRateData(item.subj, item.key).map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                            <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+                                                <span className="text-2xl font-bold text-gray-800">
+                                                    {getPassRateData(item.subj, item.key)[0].value}
+                                                </span>
+                                                <span className="text-xs text-gray-500">คนผ่านเกณฑ์</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4 text-sm mt-4 font-medium text-gray-600">
+                                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-[#10B981] rounded-full shadow-sm"></div> สูงกว่าเกณฑ์</div>
+                                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-[#EF4444] rounded-full shadow-sm"></div> ต่ำกว่าเกณฑ์</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Content: Data Table Tab */}
+                    {activeTab === 'table' && (
+                        <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[70vh]">
+                            <div className="overflow-auto custom-scrollbar flex-grow">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-gray-600 uppercase bg-gray-100 border-b sticky top-0 z-10 shadow-sm">
+                                        <tr>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort('รหัสผู้สอบ')}>รหัสผู้สอบ {sortConfig.key === 'รหัสผู้สอบ' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort('เลขที่')}>เลขที่ {sortConfig.key === 'เลขที่' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort('ชื่อ')}>ชื่อ-สกุล</th>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort('กลุ่มสอบ')}>กลุ่มสอบ {sortConfig.key === 'กลุ่มสอบ' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort('คะแนน tgat1')}>TGAT1 (100) {sortConfig.key === 'คะแนน tgat1' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort('คะแนน tgat2')}>TGAT2 (100) {sortConfig.key === 'คะแนน tgat2' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition" onClick={() => requestSort('คะแนน tgat3')}>TGAT3 (100) {sortConfig.key === 'คะแนน tgat3' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                                            <th className="px-5 py-4 cursor-pointer hover:bg-gray-200 transition bg-blue-50 text-blue-800" onClick={() => requestSort('คะแนนรวม')}>รวม (300) {sortConfig.key === 'คะแนนรวม' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {sortedData.map((row, i) => (
+                                            <tr key={i} className="bg-white hover:bg-blue-50/50 transition">
+                                                <td className="px-5 py-3 font-semibold text-gray-900">{row['รหัสผู้สอบ']}</td>
+                                                <td className="px-5 py-3 text-gray-500">{row['เลขที่']}</td>
+                                                <td className="px-5 py-3 text-gray-800">{row['ชื่อ']} {row['สกุล']}</td>
+                                                <td className="px-5 py-3 text-gray-600 font-medium">
+                                                    <span className="bg-gray-100 px-2.5 py-1 rounded-md text-xs border border-gray-200">{formatGroup(row['กลุ่มสอบ'])}</span>
+                                                </td>
+                                                
+                                                <td className={`px-5 py-3 font-medium ${row['คะแนน tgat1'] >= thresholds.tgat1 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {row['คะแนน tgat1']} {row['คะแนน tgat1'] >= thresholds.tgat1 ? <span className="text-[10px]">▲</span> : <span className="text-[10px]">▼</span>}
+                                                    </div>
+                                                </td>
+                                                <td className={`px-5 py-3 font-medium ${row['คะแนน tgat2'] >= thresholds.tgat2 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {row['คะแนน tgat2']} {row['คะแนน tgat2'] >= thresholds.tgat2 ? <span className="text-[10px]">▲</span> : <span className="text-[10px]">▼</span>}
+                                                    </div>
+                                                </td>
+                                                <td className={`px-5 py-3 font-medium ${row['คะแนน tgat3'] >= thresholds.tgat3 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {row['คะแนน tgat3']} {row['คะแนน tgat3'] >= thresholds.tgat3 ? <span className="text-[10px]">▲</span> : <span className="text-[10px]">▼</span>}
+                                                    </div>
+                                                </td>
+                                                <td className={`px-5 py-3 font-bold bg-gray-50/50 ${row['คะแนนรวม'] >= thresholds.total ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                    {row['คะแนนรวม']}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {sortedData.length === 0 && (
+                                            <tr>
+                                                <td colSpan="8" className="px-5 py-12 text-center text-gray-400">
+                                                    <div className="flex flex-col items-center">
+                                                        <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                        ไม่พบข้อมูลที่ตรงกับการค้นหา
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="bg-gray-50 px-5 py-3 text-xs text-gray-500 border-t flex gap-4">
+                                <span className="flex items-center gap-1"><span className="text-emerald-600">▲</span> หมายถึงคะแนนสูงกว่าหรือเท่ากับเกณฑ์</span>
+                                <span className="flex items-center gap-1"><span className="text-red-500">▼</span> หมายถึงคะแนนต่ำกว่าเกณฑ์</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
