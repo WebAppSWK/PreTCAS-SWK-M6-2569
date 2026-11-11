@@ -363,13 +363,21 @@
                 return (
                     <div className="bg-white p-3 rounded-xl shadow-lg border border-slate-100 text-sm">
                         <p className="font-bold text-slate-700 mb-2 border-b pb-1">{label}</p>
-                        {payload.map((entry, index) => (
-                            <div key={`item-${index}`} className="flex items-center gap-2 my-1">
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }}></div>
-                                <span className="text-slate-600">{entry.name}:</span>
-                                <span className="font-bold text-slate-800">{entry.value}</span>
-                            </div>
-                        ))}
+                        {payload.map((entry, index) => {
+                            // เลือกจุดสีหน้า Tooltip ให้ตรงวิชา
+                            let pointColor = SUBJECT_COLORS.tgat1;
+                            if (label.includes('TGAT2')) pointColor = SUBJECT_COLORS.tgat2;
+                            if (label.includes('TGAT3')) pointColor = SUBJECT_COLORS.tgat3;
+                            if (entry.name.includes('เฉลี่ย')) pointColor = SUBJECT_COLORS.avg;
+
+                            return (
+                                <div key={`item-${index}`} className="flex items-center gap-2 my-1">
+                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pointColor }}></div>
+                                    <span className="text-slate-600">{entry.name}:</span>
+                                    <span className="font-bold text-slate-800">{entry.value}</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 );
             }
@@ -427,7 +435,14 @@
                 const initData = () => {
                     if (window.Recharts && window.Papa) {
                         try {
-                            const results = Papa.parse(rawCSVData, { header: true, dynamicTyping: true, skipEmptyLines: true });
+                            // เพิ่ม transformHeader เพื่อตัดช่องว่างในชื่อคอลัมน์ (แก้ปัญหานามสกุลหาย)
+                            const results = Papa.parse(rawCSVData, { 
+                                header: true, 
+                                dynamicTyping: true, 
+                                skipEmptyLines: true,
+                                transformHeader: (header) => header.trim()
+                            });
+                            
                             const validData = results.data.filter(row => row['รหัสผู้สอบ']);
                             
                             let sum1 = 0, sum2 = 0, sum3 = 0, sumTotal = 0, count = validData.length;
@@ -552,6 +567,9 @@
 
             const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } = window.Recharts;
 
+            // สีสำรองสำหรับ Legend ให้ดูสวยงาม (แต่สีแท่งกราฟจริงจะเปลี่ยนตามหมวดวิชาอัตโนมัติ)
+            const LEGEND_COLORS = ['#f43f5e', '#d946ef', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'];
+
             return (
                 <div className="min-h-screen p-4 md:p-8 pb-20">
                     <div className="max-w-7xl mx-auto bg-gradient-to-r from-sky-400 to-indigo-400 text-white rounded-3xl shadow-md overflow-hidden mb-6 px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-4 relative">
@@ -605,25 +623,31 @@
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                             <XAxis dataKey="name" tick={{fill: '#475569', fontSize: 13, fontWeight: 600}} axisLine={false} tickLine={false} dy={10} />
                                             <YAxis tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                                            <Tooltip content={<CustomTooltip />} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{fill: '#f8fafc'}} />
                                             <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
                                             
                                             <Bar dataKey="เฉลี่ยรวม" fill={SUBJECT_COLORS.avg} name="เฉลี่ยรวมระดับชั้น" radius={[4, 4, 0, 0]} label={renderCustomBarLabel} />
-                                            {chartData.rooms.map((room, idx) => {
-                                                const getBarColor = (index) => {
-                                                    if (selectedGroup === 'all') {
-                                                        const opacities = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25];
-                                                        return `rgba(56, 189, 248, ${opacities[idx % opacities.length]})`; 
-                                                    }
-                                                    return SUBJECT_COLORS.tgat1; 
-                                                };
-                                                
-                                                return <Bar key={room} dataKey={room} fill={getBarColor(idx)} radius={[4, 4, 0, 0]} label={renderCustomBarLabel} />;
-                                            })}
+                                            
+                                            {/* เปลี่ยนสีแท่งอัตโนมัติตามวิชา (แกน X) */}
+                                            {chartData.rooms.map((room, idx) => (
+                                                <Bar key={room} dataKey={room} fill={LEGEND_COLORS[idx % LEGEND_COLORS.length]} radius={[4, 4, 0, 0]} label={renderCustomBarLabel}>
+                                                    {chartData.data.map((entry, index) => {
+                                                        let baseColor = SUBJECT_COLORS.tgat1;
+                                                        if (entry.name.includes('TGAT2')) baseColor = SUBJECT_COLORS.tgat2;
+                                                        if (entry.name.includes('TGAT3')) baseColor = SUBJECT_COLORS.tgat3;
+                                                        
+                                                        // ไล่ระดับความเข้มสีเพื่อให้มองเห็นแต่ละห้องชัดขึ้นเวลาดูรวม
+                                                        const opacities = [1, 0.92, 0.84, 0.76, 0.68, 0.6, 0.52, 0.44, 0.36, 0.28, 0.2];
+                                                        const opacity = selectedGroup === 'all' ? opacities[idx % opacities.length] : 1;
+                                                        
+                                                        return <Cell key={`cell-${index}`} fill={baseColor} fillOpacity={opacity} />;
+                                                    })}
+                                                </Bar>
+                                            ))}
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <div className="mt-4 text-xs text-center text-slate-400">* แท่งสีเทาคือค่าเฉลี่ยรวมของทั้งระดับชั้น (เพื่อให้เห็นภาพรวมเปรียบเทียบในแต่ละวิชา)</div>
+                                <div className="mt-4 text-xs text-center text-slate-400">* แท่งสีเทาคือค่าเฉลี่ยรวมของทั้งระดับชั้น | แท่งสีอิงตามวิชา ไล่ระดับความเข้มตามกลุ่มสอบ</div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
