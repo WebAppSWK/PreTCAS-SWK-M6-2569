@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SWK PreTCAS Dashboard (ม.6/2569) V1.6</title>
+    <title>SWK PreTCAS Dashboard (ม.6/2569) V1.7</title>
     
-    <!-- เปลี่ยนมาใช้ CDN หลักที่เสถียรที่สุดเพื่อป้องกันการถูกบล็อก -->
+    <!-- CDN หลักที่เสถียรที่สุดเพื่อป้องกันการถูกบล็อก -->
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
@@ -18,7 +18,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
         body { 
             font-family: 'Sarabun', sans-serif; 
-            background-color: #f8fafc; /* พื้นหลังสีสว่างซอฟต์ */
+            background-color: #f8fafc; 
             color: #334155;
         }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -40,7 +40,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 1. ฝังข้อมูล CSV (รวม 6/11-13 ตามบริบท)
+        // ฝังข้อมูล CSV ทั้งหมดอย่างครบถ้วน
         const rawCSVData = `รหัสผู้สอบ,เลขที่,ชื่อ, สกุล,กลุ่มสอบ,คะแนน tgat1,คะแนน tgat2,คะแนน tgat3,คะแนนรวม
 29157,1,นายธนสิทธิ์,ประเสริฐสังข์,1,47,60,87.92,195.92
 29265,2,นายธชรัฐ,ศรีวิชัย,1,72,61,84.58,218.58
@@ -357,7 +357,7 @@
             const g = String(group).trim();
             if (g === "12") return "ม.6/11 (12)";
             if (g === "13") return "ม.6/11 (13)";
-            return \`ม.6/\${g}\`;
+            return `ม.6/${g}`;
         };
 
         // โทนพาสเทลสำหรับกราฟ
@@ -371,39 +371,47 @@
             const [searchQuery, setSearchQuery] = useState('');
             const [sortConfig, setSortConfig] = useState({ key: 'คะแนนรวม', direction: 'desc' });
             const [thresholds, setThresholds] = useState({ tgat1: 0, tgat2: 0, tgat3: 0, total: 0 });
+            const [hasError, setHasError] = useState(false);
 
             useEffect(() => {
-                // หน่วงเวลาเล็กน้อยเพื่อให้เบราว์เซอร์เตรียม Recharts ให้พร้อม
-                setTimeout(() => {
-                    if (window.Recharts) {
-                        const results = Papa.parse(rawCSVData, { header: true, dynamicTyping: true, skipEmptyLines: true });
-                        const validData = results.data.filter(row => row['รหัสผู้สอบ']);
-                        
-                        let sum1 = 0, sum2 = 0, sum3 = 0, sumTotal = 0, count = validData.length;
-                        const processedData = validData.map(d => {
-                            sum1 += (d['คะแนน tgat1'] || 0);
-                            sum2 += (d['คะแนน tgat2'] || 0);
-                            sum3 += (d['คะแนน tgat3'] || 0);
-                            sumTotal += (d['คะแนนรวม'] || 0);
+                const initData = () => {
+                    if (window.Recharts && window.Papa) {
+                        try {
+                            const results = Papa.parse(rawCSVData, { header: true, dynamicTyping: true, skipEmptyLines: true });
+                            const validData = results.data.filter(row => row['รหัสผู้สอบ']);
                             
-                            // นำฟังก์ชันแยกชื่อมาใส่เป็น column ใหม่
-                            const { prefix, first } = parseName(d['ชื่อ']);
-                            return { ...d, คำนำหน้า: prefix, ชื่อจริง: first };
-                        });
+                            let sum1 = 0, sum2 = 0, sum3 = 0, sumTotal = 0, count = validData.length;
+                            const processedData = validData.map(d => {
+                                sum1 += (d['คะแนน tgat1'] || 0);
+                                sum2 += (d['คะแนน tgat2'] || 0);
+                                sum3 += (d['คะแนน tgat3'] || 0);
+                                sumTotal += (d['คะแนนรวม'] || 0);
+                                
+                                const { prefix, first } = parseName(d['ชื่อ']);
+                                return { ...d, คำนำหน้า: prefix, ชื่อจริง: first };
+                            });
 
-                        setData(processedData);
-                        setThresholds({
-                            tgat1: +(sum1 / count).toFixed(2),
-                            tgat2: +(sum2 / count).toFixed(2),
-                            tgat3: +(sum3 / count).toFixed(2),
-                            total: +(sumTotal / count).toFixed(2)
-                        });
-                        setIsLoaded(true);
+                            setData(processedData);
+                            if (count > 0) {
+                                setThresholds({
+                                    tgat1: +(sum1 / count).toFixed(2),
+                                    tgat2: +(sum2 / count).toFixed(2),
+                                    tgat3: +(sum3 / count).toFixed(2),
+                                    total: +(sumTotal / count).toFixed(2)
+                                });
+                            }
+                            setIsLoaded(true);
+                        } catch (err) {
+                            console.error("Error parsing data: ", err);
+                            setHasError(true);
+                        }
                     } else {
-                        // ถ้า CDN โดนบล็อก ให้แสดงการแจ้งเตือน
-                        alert("ระบบไม่สามารถโหลดส่วนประกอบกราฟได้ โปรดปิดโปรแกรม Adblocker หรือสัญลักษณ์รูปโล่ด้านบนขวา แล้วรีเฟรชหน้าเว็บอีกครั้ง");
+                        setHasError(true);
                     }
-                }, 300);
+                };
+
+                // ไม่มี setTimeout หน่วงเวลาแล้ว เพื่อให้เว็บโหลดทันที
+                initData();
             }, []);
 
             const filteredData = useMemo(() => {
@@ -443,7 +451,11 @@
                     TGAT1: +(groups[k].t1 / groups[k].count).toFixed(2),
                     TGAT2: +(groups[k].t2 / groups[k].count).toFixed(2),
                     TGAT3: +(groups[k].t3 / groups[k].count).toFixed(2)
-                })).sort((a,b) => parseInt(a.name.match(/\d+/g)[1]) - parseInt(b.name.match(/\d+/g)[1]) || a.name.localeCompare(b.name));
+                })).sort((a,b) => {
+                    const numA = parseInt((a.name.match(/\d+/g) || [0])[1] || 0);
+                    const numB = parseInt((b.name.match(/\d+/g) || [0])[1] || 0);
+                    return numA - numB || a.name.localeCompare(b.name);
+                });
             }, [filteredData]);
 
             const getPassRateData = (subject, key) => {
@@ -452,7 +464,23 @@
                 return [{ name: 'ผ่านเกณฑ์', value: pass }, { name: 'ต่ำกว่า', value: fail }];
             };
 
-            if (!isLoaded) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-medium">กำลังเตรียมข้อมูล...</div>;
+            if (hasError) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center text-slate-700 bg-slate-50 p-6 text-center">
+                        <div className="bg-white p-8 rounded-3xl shadow-sm border border-red-100 max-w-lg">
+                            <h2 className="text-xl font-bold text-red-500 mb-2">ไม่สามารถโหลดส่วนประกอบกราฟได้</h2>
+                            <p className="text-slate-600 mb-4">อาจเกิดจากระบบเครือข่าย หรือโปรแกรมปิดกั้นโฆษณา (Adblocker) บล็อกการดึงเครื่องมือวาดกราฟ</p>
+                            <div className="text-sm bg-slate-50 p-4 rounded-xl text-left border border-slate-200">
+                                <strong>วิธีแก้ไข:</strong><br/>
+                                1. หากมีสัญลักษณ์รูปโล่ (Brave) หรือไอคอนบล็อกโฆษณาด้านบนขวา ให้คลิกและเลือก "ปิดการบล็อกสำหรับเว็บนี้"<br/>
+                                2. รีเฟรชหน้าเว็บอีกครั้ง (กด Ctrl + F5)
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!isLoaded) return null;
 
             const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } = window.Recharts;
 
@@ -461,7 +489,7 @@
                     {/* Header โค้งมนสีพาสเทลไล่ระดับ */}
                     <div className="max-w-7xl mx-auto bg-gradient-to-r from-sky-400 to-indigo-400 text-white rounded-3xl shadow-md overflow-hidden mb-6 px-8 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div>
-                            <h1 className="text-2xl font-bold tracking-wide">SWK PreTCAS Dashboard (ม.6/2569) V1.6</h1>
+                            <h1 className="text-2xl font-bold tracking-wide">SWK PreTCAS Dashboard (ม.6/2569) V1.7</h1>
                             <p className="text-sky-100 text-sm mt-1 font-light">ระบบวิเคราะห์ข้อมูลผลการสอบเพื่อประเมินความพร้อมระดับชั้น ม.6</p>
                         </div>
                         <div className="bg-white/20 p-1 rounded-2xl flex backdrop-blur-sm">
@@ -473,8 +501,8 @@
                     {/* Controls & Thresholds โค้งมน */}
                     <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-100 p-4 px-6 flex flex-col xl:flex-row justify-between items-center gap-6 mb-6">
                         <div className="flex gap-3">
-                            <button className={\`tab-btn \${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}\`} onClick={() => setActiveTab('overview')}>ภาพรวม (Executive)</button>
-                            <button className={\`tab-btn \${activeTab === 'table' ? 'tab-active' : 'tab-inactive'}\`} onClick={() => setActiveTab('table')}>ข้อมูลรายบุคคล (Data)</button>
+                            <button className={`tab-btn ${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('overview')}>ภาพรวม (Executive)</button>
+                            <button className={`tab-btn ${activeTab === 'table' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('table')}>ข้อมูลรายบุคคล (Data)</button>
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -514,7 +542,6 @@
                                             <YAxis tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
                                             <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
                                             <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
-                                            {/* สีพาสเทลสำหรับบาร์ชาร์ท */}
                                             <Bar dataKey="TGAT1" fill="#7dd3fc" name="TGAT1 (อังกฤษ)" radius={[6, 6, 0, 0]} />
                                             <Bar dataKey="TGAT2" fill="#c4b5fd" name="TGAT2 (เหตุผล)" radius={[6, 6, 0, 0]} />
                                             <Bar dataKey="TGAT3" fill="#fde047" name="TGAT3 (สมรรถนะ)" radius={[6, 6, 0, 0]} />
@@ -532,7 +559,7 @@
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
                                                     <Pie data={getPassRateData(item.subj, item.key)} innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value" stroke="none">
-                                                        {getPassRateData(item.subj, item.key).map((entry, index) => <Cell key={\`cell-\${index}\`} fill={PIE_COLORS[index]} />)}
+                                                        {getPassRateData(item.subj, item.key).map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
                                                     </Pie>
                                                     <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
                                                 </PieChart>
@@ -572,11 +599,11 @@
                                                 <td className="px-5 py-3 text-slate-600">{row['สกุล']}</td>
                                                 <td className="px-5 py-3 text-slate-500">{formatGroup(row['กลุ่มสอบ'])}</td>
                                                 {['tgat1', 'tgat2', 'tgat3'].map(subj => (
-                                                    <td key={subj} className={\`px-5 py-3 font-semibold \${row[\`คะแนน \${subj}\`] >= thresholds[subj] ? 'text-emerald-500' : 'text-red-400'}\`}>
-                                                        {row[\`คะแนน \${subj}\`]} {row[\`คะแนน \${subj}\`] >= thresholds[subj] ? '▲' : '▼'}
+                                                    <td key={subj} className={`px-5 py-3 font-semibold ${row[`คะแนน ${subj}`] >= thresholds[subj] ? 'text-emerald-500' : 'text-red-400'}`}>
+                                                        {row[`คะแนน ${subj}`]} {row[`คะแนน ${subj}`] >= thresholds[subj] ? '▲' : '▼'}
                                                     </td>
                                                 ))}
-                                                <td className={\`px-5 py-3 font-bold \${row['คะแนนรวม'] >= thresholds.total ? 'text-emerald-500' : 'text-red-500 bg-red-50/50 rounded-lg'}\`}>
+                                                <td className={`px-5 py-3 font-bold ${row['คะแนนรวม'] >= thresholds.total ? 'text-emerald-500' : 'text-red-500 bg-red-50/50 rounded-lg'}`}>
                                                     {row['คะแนนรวม']}
                                                 </td>
                                             </tr>
